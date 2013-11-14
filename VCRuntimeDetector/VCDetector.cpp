@@ -142,27 +142,7 @@ bool CheckProductUsingCurrentDirectory(const LPCTSTR pszProductBinaryToCheck, Ar
 	if (hMapping == INVALID_HANDLE_VALUE) goto cleanup;
 
 	LPVOID addrHeader = MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0);
-#if _DEBUG //get the error information for debugging purposes
-	if (addrHeader == NULL){
-
-		DWORD dLastError = GetLastError();
-		LPCTSTR strErrorMessage = NULL;
-		FormatMessage(
-			FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-			NULL,
-			dLastError,
-			0,
-			(LPWSTR) &strErrorMessage,
-			0,
-			NULL);
-		
-		OutputDebugString(strErrorMessage);
-		goto cleanup;
-	}
-#else
 	if (addrHeader == NULL) goto cleanup; //couldn't memory map the file
-#endif
-
 
 	PIMAGE_NT_HEADERS peHdr = ImageNtHeader(addrHeader);
 	if (peHdr == NULL) goto cleanup; //couldn't read the header
