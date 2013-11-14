@@ -17,8 +17,20 @@ const LPCTSTR _vc2008x64FolderName = TEXT("amd64_microsoft.vc90.crt_1fc8b3b9a1e1
 const LPCTSTR _vc2008SP1x86FolderName = TEXT("x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_9.0.30729*");
 const LPCTSTR _vc2008SP1x64FolderName = TEXT("amd64_microsoft.vc90.crt_1fc8b3b9a1e18e3b_9.0.30729*");
 
+// Constants used to represent the names of VC++ runtime binaries, when checking for local folder support
+const LPCTSTR _vc2008FileName1 = TEXT("msvcr90.dll");
+const LPCTSTR _vc2008FileName2 = TEXT("msvcm90.dll");
+const LPCTSTR _vc2008FileName3 = TEXT("msvcp90.dll");
+
+const LPCTSTR _vc2010FileName1 = TEXT("msvcp100.dll");
+const LPCTSTR _vc2010FileName2 = TEXT("msvcr100.dll");
+
+
 // Global constants and variables used in file-lookup queries
 const LPCTSTR _winSxSFolderName = TEXT("WinSXS");
+
+// Architecture enum - used when inspecting VC++ binaries in a local folder
+enum Architecture { X86 = IMAGE_FILE_MACHINE_I386, X64 = IMAGE_FILE_MACHINE_AMD64, Itanium = IMAGE_FILE_MACHINE_IA64 };
 
 /******************************************************************
 Function Name:  CheckProductUsingMsiQueryProductState
@@ -68,18 +80,18 @@ LPCTSTR GetWinSXSDirectory(){
 Function Name:  CheckProductUsingWinSxSFolder
 Description:    Queries the $WINDIR/WinSxS folder for the appropriate
 install path for the requested product.
-Inputs:         pszProductToCheck - the product name to look up.
+Inputs:         pszProductFolderToCheck - the product name to look up.
 Results:        true if the requested product is installed
 false otherwise
 ******************************************************************/
-bool CheckProductUsingWinSxSFolder(const LPCTSTR pszProductToCheck){
+bool CheckProductUsingWinSxSFolder(const LPCTSTR pszProductFolderToCheck){
 	bool bFoundRequestedProduct = false;
 
 	LPCTSTR strWinSxSDir = GetWinSXSDirectory();
 
 	if (strWinSxSDir != NULL){
 		TCHAR searchPath[MAX_PATH];
-		if (PathCombine(searchPath, strWinSxSDir, pszProductToCheck) != NULL){
+		if (PathCombine(searchPath, strWinSxSDir, pszProductFolderToCheck) != NULL){
 			WIN32_FIND_DATA FindFileData;
 			HANDLE hFind;
 			hFind = FindFirstFile(searchPath, &FindFileData);
@@ -88,12 +100,57 @@ bool CheckProductUsingWinSxSFolder(const LPCTSTR pszProductToCheck){
 				FindClose(hFind);
 			}
 		}
-		
+
 	}
 
 	return bFoundRequestedProduct;
 }
 
+/******************************************************************
+Function Name:  CheckProductUsingCurrentDirectory
+Description:    Queries the current working directory for a given binary.
+Inputs:         pszProductFolderToCheck - the product name to look up.
+pBinaryArchitecture - the desired processor architecture
+of the binary (x86, x64, etc..).
+Results:        true if the requested product is installed
+false otherwise
+******************************************************************/
+bool CheckProductUsingCurrentDirectory(const LPCTSTR pszProductBinaryToCheck, Architecture pBinaryArchitecture){
+	bool bFoundRequestedProduct = false;
+
+	//Get the length of the buffer first
+	TCHAR currentDirectory[MAX_PATH];
+	DWORD currentDirectoryChars = GetCurrentDirectory(MAX_PATH, currentDirectory);
+
+	//exit if couldn't get current directory
+	if (currentDirectoryChars <= 0) return bFoundRequestedProduct; 
+
+	TCHAR searchPath[MAX_PATH];
+	//exit if we couldn't combine the path to the requested binary
+	if (PathCombine(searchPath, currentDirectory, pszProductBinaryToCheck) == NULL) return bFoundRequestedProduct; 
+
+	WIN32_FIND_DATA FindFileData;
+	HANDLE hFind;
+	hFind = FindFirstFile(searchPath, &FindFileData);
+
+	//exit if the binary was not found
+	if (hFind == INVALID_HANDLE_VALUE) return bFoundRequestedProduct;
+
+	LPVOID addrHeader = MapViewOfFile(hFind, FILE_MAP_READ, 0, 0, 0);
+	if (addrHeader == NULL) goto cleanup; //couldn't memory map the file
+
+	PIMAGE_NT_HEADERS peHdr = ImageNtHeader(addrHeader);
+	if (peHdr == NULL) goto cleanup; //couldn't read the header
+	
+	//Found the binary, AND its architecture matches. Success!
+	if (peHdr->FileHeader.Machine == pBinaryArchitecture){
+		bFoundRequestedProduct = true;
+	}
+
+cleanup:
+	FindClose(hFind);
+	return bFoundRequestedProduct;
+}
 
 /******************************************************************
 Function Name:  IsVC2008Installed_x86
@@ -181,4 +238,25 @@ false otherwise
 ******************************************************************/
 bool IsVC2010SP1Installed_x64(){
 	return CheckProductUsingMsiQueryProductState(_vc2010SP1x64Code);
+}
+
+bool IsVC2008AvailableLocally_x86(){
+	return CheckProductUsingCurrentDirectory(_vc2008FileName1, X86) 
+		&& CheckProductUsingCurrentDirectory(_vc2008FileName2, X86) 
+		&& CheckProductUsingCurrentDirectory(_vc2008FileName3, X86);
+}
+
+bool IsVC2008AvailableLocally_x64(){
+	return CheckProductUsingCurrentDirectory(_vc2008FileName1, X64)
+		&& CheckProductUsingCurrentDirectory(_vc2008FileName2, X64)
+		&& CheckProductUsingCurrentDirectory(_vc2008FileName3, X64);
+}
+
+bool IsVC2010AvailableLocally_x86(){
+	return CheckProductUsingCurrentDirectory(_vc2010FileName1, X86)
+		&& CheckProductUsingCurrentDirectory(_vc2010FileName2, X86);
+}
+bool IsVC2010AvailableLocally_x64(){
+	return CheckProductUsingCurrentDirectory(_vc2010FileName1, X64)
+		&& CheckProductUsingCurrentDirectory(_vc2010FileName2, X64);
 }
