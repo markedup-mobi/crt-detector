@@ -123,32 +123,61 @@ bool CheckProductUsingCurrentDirectory(const LPCTSTR pszProductBinaryToCheck, Ar
 	DWORD currentDirectoryChars = GetCurrentDirectory(MAX_PATH, currentDirectory);
 
 	//exit if couldn't get current directory
-	if (currentDirectoryChars <= 0) return bFoundRequestedProduct; 
+	if (currentDirectoryChars <= 0) return bFoundRequestedProduct;
 
 	TCHAR searchPath[MAX_PATH];
 	//exit if we couldn't combine the path to the requested binary
-	if (PathCombine(searchPath, currentDirectory, pszProductBinaryToCheck) == NULL) return bFoundRequestedProduct; 
+	if (PathCombine(searchPath, currentDirectory, pszProductBinaryToCheck) == NULL) return bFoundRequestedProduct;
 
 	WIN32_FIND_DATA FindFileData;
-	HANDLE hFind;
-	hFind = FindFirstFile(searchPath, &FindFileData);
+	HANDLE hFind= FindFirstFile(searchPath, &FindFileData);
 
 	//exit if the binary was not found
 	if (hFind == INVALID_HANDLE_VALUE) return bFoundRequestedProduct;
 
-	LPVOID addrHeader = MapViewOfFile(hFind, FILE_MAP_READ, 0, 0, 0);
+	HANDLE hFile = CreateFile(searchPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) goto cleanup;
+
+	HANDLE hMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY | SEC_IMAGE, 0, 0, pszProductBinaryToCheck);
+	if (hMapping == INVALID_HANDLE_VALUE) goto cleanup;
+
+	LPVOID addrHeader = MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0);
+#if _DEBUG //get the error information for debugging purposes
+	if (addrHeader == NULL){
+
+		DWORD dLastError = GetLastError();
+		LPCTSTR strErrorMessage = NULL;
+		FormatMessage(
+			FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_ALLOCATE_BUFFER,
+			NULL,
+			dLastError,
+			0,
+			(LPWSTR) &strErrorMessage,
+			0,
+			NULL);
+		
+		OutputDebugString(strErrorMessage);
+		goto cleanup;
+	}
+#else
 	if (addrHeader == NULL) goto cleanup; //couldn't memory map the file
+#endif
+
 
 	PIMAGE_NT_HEADERS peHdr = ImageNtHeader(addrHeader);
 	if (peHdr == NULL) goto cleanup; //couldn't read the header
-	
+
 	//Found the binary, AND its architecture matches. Success!
 	if (peHdr->FileHeader.Machine == pBinaryArchitecture){
 		bFoundRequestedProduct = true;
 	}
 
-cleanup:
+cleanup: //release all of our handles
 	FindClose(hFind);
+	if (hFile != INVALID_HANDLE_VALUE)
+		CloseHandle(hFile);
+	if (hMapping != INVALID_HANDLE_VALUE)
+		CloseHandle(hMapping);
 	return bFoundRequestedProduct;
 }
 
@@ -231,31 +260,60 @@ bool IsVC2010SP1Installed_x86(){
 
 /******************************************************************
 Function Name:  IsVC2010SP1Installed_x64
-Description:    Checks if the VC++9 runtime (SP1) for x64 is installed on this machine.
+Description:    Checks if the VC++10 runtime (SP1) for x64 is installed on this machine.
 Inputs:         NONE
-Results:        true if the VC++9 runtime (SP1) for x64 is installed
+Results:        true if the VC++10 runtime (SP1) for x64 is installed
 false otherwise
 ******************************************************************/
 bool IsVC2010SP1Installed_x64(){
 	return CheckProductUsingMsiQueryProductState(_vc2010SP1x64Code);
 }
 
+/******************************************************************
+Function Name:  IsVC2008AvailableLocally_x86
+Description:    Checks if the VC++9 runtime for x86 is available in the current directory.
+Inputs:         NONE
+Results:        true if the VC++9 runtime for x86 is available
+false otherwise
+******************************************************************/
 bool IsVC2008AvailableLocally_x86(){
-	return CheckProductUsingCurrentDirectory(_vc2008FileName1, X86) 
-		&& CheckProductUsingCurrentDirectory(_vc2008FileName2, X86) 
+	return CheckProductUsingCurrentDirectory(_vc2008FileName1, X86)
+		&& CheckProductUsingCurrentDirectory(_vc2008FileName2, X86)
 		&& CheckProductUsingCurrentDirectory(_vc2008FileName3, X86);
 }
 
+/******************************************************************
+Function Name:  IsVC2008AvailableLocally_x64
+Description:    Checks if the VC++9 runtime for x64 is available in the current directory.
+Inputs:         NONE
+Results:        true if the VC++9 runtime for x64 is available
+false otherwise
+******************************************************************/
 bool IsVC2008AvailableLocally_x64(){
 	return CheckProductUsingCurrentDirectory(_vc2008FileName1, X64)
 		&& CheckProductUsingCurrentDirectory(_vc2008FileName2, X64)
 		&& CheckProductUsingCurrentDirectory(_vc2008FileName3, X64);
 }
 
+/******************************************************************
+Function Name:  IsVC2010AvailableLocally_x86
+Description:    Checks if the VC++10 runtime for x86 is available in the current directory.
+Inputs:         NONE
+Results:        true if the VC++9 runtime for x86 is available
+false otherwise
+******************************************************************/
 bool IsVC2010AvailableLocally_x86(){
 	return CheckProductUsingCurrentDirectory(_vc2010FileName1, X86)
 		&& CheckProductUsingCurrentDirectory(_vc2010FileName2, X86);
 }
+
+/******************************************************************
+Function Name:  IsVC2010AvailableLocally_x64
+Description:    Checks if the VC++10 runtime for x64 is available in the current directory.
+Inputs:         NONE
+Results:        true if the VC++10 runtime for x64 is available
+false otherwise
+******************************************************************/
 bool IsVC2010AvailableLocally_x64(){
 	return CheckProductUsingCurrentDirectory(_vc2010FileName1, X64)
 		&& CheckProductUsingCurrentDirectory(_vc2010FileName2, X64);
