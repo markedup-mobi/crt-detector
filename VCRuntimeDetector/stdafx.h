@@ -12,7 +12,7 @@
 #include <Windows.h>
 #include <Msi.h>
 #include "Shlwapi.h"
-
+#include "Dbghelp.h"
 
 
 // TODO: reference additional headers your program requires here
