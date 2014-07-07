@@ -20,7 +20,31 @@ And then you can check for it in the current working directory if necessary:
 	if(IsVC2008AvailableLocally_x86()()){ ... }
 ````
 
-That's all there is to it! Please view `VCDetector.h` to see the full set of available methods.
+That's all there is to it! `VCDetector.h` contains all of the following methods for your use:
+
+````
+//VC++9
+bool IsVC2008Installed_x86();
+bool IsVC2008SP1Installed_x86();
+
+bool IsVC2008Installed_x64();
+bool IsVC2008SP1Installed_x64();
+
+//Check to see if VC++9 binaries are available in current directory
+bool IsVC2008AvailableLocally_x86();
+bool IsVC2008AvailableLocally_x64();
+
+//VC++10
+bool IsVC2010Installed_x86();
+bool IsVC2010SP1Installed_x86();
+
+bool IsVC2010Installed_x64();
+bool IsVC2010SP1Installed_x64();
+
+//Check to see if VC++10 binaries are available in current directory
+bool IsVC2010AvailableLocally_x86();
+bool IsVC2010AvailableLocally_x64();
+````
 
 ## Source Files
 The only two files that you need to integrate this detection functionality into your apps are:
